@@ -7,9 +7,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDate;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 
 @SpringBootApplication
 public class ApiApplication {
@@ -37,13 +35,18 @@ class Controller {
 
 	@PostMapping("/calculate")
 	public String calculate(@RequestBody Map<String, String[]> body) {
+		HashSet<String> validCurrencies = new HashSet<>(Arrays.asList("CAD", "HKD", "LVL", "PHP", "DKK", "HUF", "CZK", "AUD", "RON", "SEK", "IDR", "INR", "BRL", "RUB", "LTL", "JPY", "THB", "CHF", "SGD", "PLN", "BGN", "TRY", "CNY", "NOK", "NZD", "ZAR", "USD", "MXN", "EEK", "GBP", "KRW", "MYR", "HRK"));
 		String clist[] = body.get("currencyList");
 		TreeMap<String,Double> tm=new TreeMap<>();
 		Gson g = new Gson();
 
 		for(int i=0;i<clist.length;i++){
-			tm.put(clist[i],0D);
+			if(validCurrencies.contains(clist[i]))
+				tm.put(clist[i],0D);
+			else
+				return "Invalid currency : "+clist[i]+"\n";
 		}
+
 		LocalDate start,end;
 		try {
 			start = LocalDate.parse(body.get("range")[0]);
@@ -51,8 +54,17 @@ class Controller {
 		}catch(Exception e){
 			return g.toJson(e.getMessage());
 		}
+
 		if(start.isAfter(end)){
 			return "{ \n\t\"Error\" : \"Start date is greater than End Date.\"\n}";
+		}
+
+		if(start.isBefore(LocalDate.parse("2000-01-01"))){
+			return "{ \n\t\"Error\" : \"Start date is less than 2000-01-01\"\n}";
+		}
+
+		if(end.isAfter(LocalDate.now())){
+			return "{ \n\t\"Error\" : \"End date is after today's date\"\n}";
 		}
 
 		double count=0;
@@ -68,14 +80,15 @@ class Controller {
 
 			Response r = g.fromJson(jsonString, Response.class);
 			for(String cur:r.rates.keySet()){
-				if(tm.containsKey(cur)){
-					tm.put(cur,tm.get(cur)+r.rates.get(cur));
+				if(tm.containsKey(cur)) {
+					tm.put(cur, tm.get(cur) + r.rates.get(cur));
 				}
 			}
 			start=start.plusDays(1);
 		}
+
 		for(String cur:tm.keySet()){
-			tm.put(cur,tm.get(cur)/count);
+			tm.put(cur,Math.round(tm.get(cur)/count * 10000D)/10000D);
 		}
 
 		return g.toJson(tm);
